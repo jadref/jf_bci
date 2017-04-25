@@ -1,0 +1,3 @@
+function z=jf_single(z);
+if( class(z.X,'double') ) z.X=single(z.X); end;
+z=jf_addprep(z,mfilename,'',[],[]);

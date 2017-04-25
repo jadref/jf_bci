@@ -1,0 +1,4 @@
+function z=jf_transcvtrain(z,varargin)
+opts=struct('blockIdx','');
+[opts,varargin]=parseOpts(opts,varargin);
+blockIdx=getBlockIdx(z,opts.blockIdx);

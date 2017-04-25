@@ -1,0 +1,1 @@
+N.B. to remove student-version flag from printouts, remove the render strings from matlab/bin/hardcopy.so

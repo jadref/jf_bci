@@ -1,0 +1,17 @@
+function [z]=jf_mkSubProb(z,varargin);
+opts=struct('blockIdx',[],'dim','epoch','idx',[],'subIdx',[],'verb',0);
+opts=parseOpts(opts,varargin);
+
+if ( ~isempty(opts.blockIdx) ) 
+  idx=getBlockIdx(z,opts.blockIdx);
+end
+
+
+
+summary = sprintf('over %s',odi(dim(1)).name);
+if( numel(dim)>1 ) summary = [summary sprintf('+%s',odi(dim(2:end)).name)]; end;
+if(ischar(opts.wght)) summary = [summary ' ' opts.wght]; end;
+if(~isempty(opts.summary)) summary=[summary  sprintf(' (%s)',opts.summary)];end
+info=[];
+z=jf_addprep(z,mfilename,summary,opts,info);
+return;

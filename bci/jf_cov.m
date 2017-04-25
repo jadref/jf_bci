@@ -1,0 +1,60 @@
+function [z]=jf_cov(z,varargin);
+% comute covariance matrices -- N.B. *NOT* centered
+%
+%  [z]=jf_cov(z,varargin);
+%
+% Options:
+%  dim -- spec of the dimensions to compute covariances matrices
+%         dim(1)=dimension to compute covariance over
+%         dim(2:end) dimensions to sum along
+%  type-- type of covariance to compute, one-of  ('real')
+%          'real' - pure real, 'complex' - complex, 'imag2cart' - complex converted to real
+opts=struct('dim',{{'ch' 'time'}},'type','real','subIdx',[],'verb',0);
+opts=parseOpts(opts,varargin);
+
+% convert from names to dims
+dim=n2d(z.di,opts.dim,[],0);dim(dim==0)=[];
+
+sz=size(z.X); nd=ndims(z.X);
+% Map to co-variances, i.e. outer-product over the channel dimension
+idx1=1:ndims(z.X); 
+% insert extra dim for OP and squeeze out accum dims
+shifts=zeros(size(idx1)); shifts(dim(2:end))=-1; % squeeze out accum
+shifts(dim(1)+1)=shifts(dim(1)+1)+1; % insert for OP
+idx1=idx1 + cumsum(shifts);
+idx1(dim(2:end))=-dim(2:end);  % mark accum'd
+idx2=idx1; idx2(dim(1))=idx1(dim(1))+1;
+if ( isreal(z.X) ) % include the complex part if necessary
+   z.X = tprod(z.X,idx1,[],idx2);
+else
+   switch (opts.type);
+    case 'real';       z.X = tprod(real(z.X),idx1,[],idx2) + tprod(imag(z.X),idx1,[],idx2); % pure real output
+    case 'complex';    z.X = tprod(z.X,idx1,conj(z.X),idx2); % pure complex, N.B. need complex conjugate!
+    case 'imag2cart';  z.X = tprod(z.X,idx1,conj(z.X),idx2); 
+     iX=imag(z.X); if( isempty(iX) ) iX=zeros(size(z.X),class(z.X)); end;
+     z.X = cat(dim(1)+1,cat(dim(1),real(z.X),iX),cat(dim(1),-iX,real(z.X)));% unfold to double size
+     clear iX;
+    otherwise; error('Unrecognised type of covariance to compute');
+  end
+end
+if ( numel(dim)>1 ) z.X=z.X/prod(sz(dim(2:end))); end
+
+newDs=[setdiff(1:dim(1),dim(2:end)) dim(1) setdiff(dim(1)+1:nd,dim(2:end))];
+odi=z.di;
+z.di=z.di([newDs end]);
+nchD=find(newDs==dim(1),1,'first');
+z.di(nchD+1).name=[odi(dim(1)).name '_2'];
+if ( strcmp(opts.type,'imag2cart') && ~isreal(z.X) )   
+   z.di(nchD).vals = cat(2,z.di(nchD).vals,z.di(nchD).vals);
+   z.di(nchD+1).vals=cat(2,z.di(nchD+1).vals,z.di(nchD+1).vals);
+end
+if ( ~isempty(z.di(end).units) ) z.di(end).units=[z.di(end).units '^2'];end
+
+summary=sprintf('over %ss',odi(dim(1)).name);
+if( ~strcmp(opts.type,'real') ) summary = [opts.type ' ' summary]; end;
+if(numel(dim)>1) summary=[summary ' x (' sprintf('%s ',odi(dim(2:end)).name) ')'];end 
+info=struct('sz',sz,'accdi',odi(dim(2:end)));
+z =jf_addprep(z,mfilename,summary,opts,info);
+return;
+%-----------------------------------------------------------------------
+function testCase()

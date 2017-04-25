@@ -1,0 +1,26 @@
+function [z]=subsampleY(z,idx,ydim)
+minmax=false;
+if( sum(z.Y(:)==0) > .2*numel(z.Y) ) 
+   minmax=true;
+   warning('Need to sub-sample Y also... doing by taking extreeem values, events may be lost!');
+end
+% get integer version of the sample idxs
+iidx=start;
+yidx=repmat({':'},ndims(z.Y),1); yidx{ydim}=iidx;
+oY  = z.Y;
+z.Y = oY(yidx{:});
+for ei=1:numel(iidx); % loop over the range getting the extreem values in each block      
+   if(ei==1) tr=1:iidx(ei); else tr=iidx(ei-1)+1:iidx(ei); end; % get range samples
+   yidx{ydim}=tr; 
+   Yei = oY(yidx{:}); 
+   if( minmax )
+      nYei= max(Yei,[],ydim); % extract extreem value
+      minYei=min(Yei,[],ydim); 
+      nYei(nYei==0|isnan(nYei))=minYei(nYei==0|isnan(nYei)); %replace 0/NaN's with min-value
+   else % mean these values
+      Yei(isnan(Yei))==0;
+            nYei= sum(Yei,ydim)./sum(Yei~=0,ydim);
+   end
+   yidx{ydim}=ei; z.Y(yidx{:})=nYei; % insert back into labels
+end
+z.Ydi(ydim).vals = z.Ydi(ydim).vals(iidx);

@@ -1,0 +1,19 @@
+This directory contains all the files needed to fix the matlab repmat and multi-dimensional multiply bugs. 
+
+To install:
+1) Put all these files in a directory where matlab can see them.
+2) There is no step 2. ;-)
+
+(Actually the codes are written such that matlab will automatically make the required mex files when you first use them -- provided you matlab is set-up correctly this should be transparent to you).
+
+To get help:
+help repop
+or 
+help tprod
+from the matlab prompt
+
+For a demo of the codes and also to test their correctness use:
+repop_testcases
+or 
+tprod_testcases
+

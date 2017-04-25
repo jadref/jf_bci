@@ -1,0 +1,113 @@
+function [C]=covEigTrans(C,type,param,verb)
+% transform the eigenvalue structure of a set of covariance matrices, e.g. by log
+% 
+%  [nC]=covEigTrans(C,type,param)
+% 
+%  nC(:,:,i) = U_i * diag(f(\lambda)) * U_i';
+%  where, [U,\lambda]=eig(C(:,:,i)) and f(.) is the selected transformation
+%
+% Inputs:
+%  C -- [d x d x N] set of covariance matrices
+%  type -- {'str'}, one of:
+%          'sphere' -- spherical transform, \lambda' = 1
+%          'sqrt'   -- square root: \lambda' = sqrt(\lambda)
+%          'dsqrt'  -- square root of diagnol entries = C ./ sqrt(diag(C))
+%          'log'    -- log:         \lambda' = log(\labmda)
+%               N.B. param = min eig value, param<0 -> min is rel to param'th weakest component on all data
+%          'ridge'  -- add ridge of strength param of this strength
+%               N.B. param<0 -> ridge strength is the strength of the param'th *weakest* component on
+%                               *all* the data!
+%          'keep'   -- keep strongest param(1) eigenvalues
+%               N.B. param<0 -> keep up to the param(1)'th *weakest* component
+%          'remove' -- keep weakest param(1) eigenvalues
+%          'none'   -- do nothing
+%  param -- parameter to pass to the different transformation
+%  verb  -- [int] verbosity level                           (0)
+if( nargin<3 ) param=[]; end;
+if( nargin<4 || isempty(verb) ) verb=1; end;
+szC=size(C);
+if ( szC(1)~=szC(2) ) error('Not symetric covariance matrix input!'); end;
+if ( ~iscell(type) ) type={type}; end;
+
+% ridge is relative to full-data eig-spectrum
+if ( any(strcmp(type{1},{'ridge','log','sqrt',})) && param(1)<0 ) 
+  Call = sum(C(:,:,:),3)./prod(szC(3:end));
+  sall = eig(Call);
+  [ans,si]=sort(abs(sall),'descend'); sall=sall(si); % get decreasing order
+  % remove the rank defficient/non-PD entries
+  si = sall>eps & ~isnan(sall) & abs(imag(sall))<eps; sall=sall(si);
+  if ( abs(param(1))<1 )% fraction of the spectrum
+	 param(1) = sall(round(end*abs(param)));
+  else % number of components back in the eigen-spectrum
+	 param(1) = sall(end-abs(param(1))+1);
+  end
+end
+
+type=lower(type);
+% in-place transformation
+if ( verb>0 ) fprintf('covEigTrans:'); end;
+for ci=1:prod(szC(3:end));
+  if ( verb>0 ) textprogressbar(ci,prod(szC(3:end))); end;
+
+  Cci=C(:,:,ci);
+  if ( strcmp(type{1},'dsqrt') )  % BODGE: apply directly to re-scale the rows
+     tmp=sqrt(diag(Cci)); if ( tmp<eps ) tmp=1; end;
+     C(:,:,ci) =  repop(Cci,'/',tmp);
+     continue;
+  elseif ( strcmp(type{1},'ddsqrt') )
+     tmp=sqrt(diag(Cci)); if ( tmp<eps ) tmp=1; end;
+     tmp=sqrt(tmp);
+     C(:,:,ci) =  repop(repop(Cci,'/',tmp),'/',tmp');
+     continue;
+  end
+  
+  % actual eigen transofrmation
+  [U,s]=eig(Cci); s=diag(s); si=1:numel(s);
+  for ti=1:numel(type);
+    switch ( type{ti} ) 
+     case {'sphere','wht','whiten'}; s(:)=1;
+     case 'sqrt';   
+        if ( isempty(param) ) param=1e-6*max(abs(s)); end;
+        s(s<param(1) | s==0 | isnan(s) | isinf(s) | imag(s)>0)=1; 
+        s=sqrt(s);
+     case 'log';
+        if ( isempty(param) ) param=1e-6*max(abs(s)); end;
+        s(s<param(1) | s==0 | isnan(s) | isinf(s) | imag(s)>0)=1; 
+        s=log(s); % log -- avoiding log of 0
+     case 'ridge';
+		 s=s+param; % N.B. this can be done much more efficently!!!
+     case 'keep';
+		 if (any(param<0) ) param(param<0)=numel(s)+param(param<0); end; % neg count back from end
+       if ( numel(param)==1 )[ans,si]=sort(abs(s),'descend');  si=si(1:param(1));
+       else                  [ans,si]=sort(real(s),'descend');	si=si([1:param(1) end-param(2)+1:end]);
+      end
+     case 'remove';   
+		if (any(param<0) ) param(param<0)=numel(s)+param(param<0); end; % neg count back from end
+      [ans,si]=sort(abs(s),'descend');  si=si(param(1):end); 
+     case 'none';
+     otherwise;
+      warning(sprintf('Unrecognised eigTranstype : %s\n',type));
+    end  
+  end
+  C(:,:,ci) = U(:,si)*diag(s(si))*U(:,si)';
+end
+if ( verb>0 ) fprintf('\n'); end;
+return;
+function testCase()
+X=randn(10,1000);
+C=X*X'./size(X,2);
+clf; plot(sort(eig(C),'descend'),linecol(),'DisplayName','raw'); hold on;
+nC=covEigTrans(C,'sphere'); plot(sort(eig(nC),'descend'),linecol(),'DisplayName','sphere');
+nC=covEigTrans(C,'sqrt'); plot(sort(eig(nC),'descend'),linecol(),'DisplayName','sqrt');
+nC=covEigTrans(C,'dsqrt'); plot(sort(eig(nC),'descend'),linecol(),'DisplayName','dsqrt');
+nC=covEigTrans(C,'log'); plot(sort(eig(nC),'descend'),linecol(),'DisplayName','log');
+nC=covEigTrans(C,'keep',4); plot(sort(real(eig(nC)),'descend'),linecol(),'DisplayName','keep4');
+nC=covEigTrans(C,'keep',[2 2]); plot(sort(real(eig(nC)),'descend'),linecol(),'DisplayName','keep2,2');
+nC=covEigTrans(C,'ridge',.2); plot(sort(real(eig(nC)),'descend'),linecol(),'DisplayName','ridge.2');
+nC=covEigTrans(C,'ridge',-2); plot(sort(real(eig(nC)),'descend'),linecol(),'DisplayName','ridge-2');
+nC=covEigTrans(C,{'ridge' 'sqrt'},.2); plot(sort(real(eig(nC)),'descend'),linecol(),'DisplayName','ridge.2+sqrt');
+legend('show')
+
+% test with singular inputs
+[U,s]=eig(C);s=diag(s);Cs=U(:,1:end-1)*diag(s(1:end-1))*U(:,1:end-1)';
+nC=covEigTrans(Cs,'log'); plot(sort(eig(nC),'descend'),linecol(),'DisplayName','log');

@@ -1,0 +1,231 @@
+function [filelst]=findFiles(expt,subj,sessions,blocks,varargin)
+% find datafiles in a directory structure by matching expt,subj,session,block 
+%
+% [filelst]=findFiles(expt,subj,sessions,blocks,varargin)
+%
+% Inputs:
+%  
+% Options:
+%  sessdirregexp  -- regexp showing how to extract portion of session dir name
+%                    which should match the input session value.  If empty then no session dir.
+%                    ( '(.*)' )
+%  sessfileregexp -- regexp showing how to extract session description portion 
+%                    of file name. ('')
+%  blkdirregexp   -- [str] regexp showing how to extract block info from block dir name ('(.*)')
+%                    if empty then no block dir.
+%  blkfileregexp  -- [str] regexp showing how to extract block info from data-file name ('')
+%  dtype          -- data type sub-directory ('raw_bdf')
+%  rootdir        -- {str} root dir to start searching for data files
+%  fileregexp     -- [str] regexp for matching data-file names
+%  matchdir       -- [bool] allow to match a directory for the data file                (false)
+%  excluderegexp  -- [str] regexp to exclude data-file names
+%  verb           -- [int] verbosity level for debugging
+
+global bciroot; if ( ischar(bciroot) ) bciroot={bciroot}; end;
+opts=struct('blkdirregexp','(.*)','blkfileregexp',[],...
+            'sessdirregexp','(.*)','sessfileregexp',[],...
+            'dtype','','rootdir',{bciroot},...
+            'fileregexp',[],'excluderegexp','^[._]','matchdir',false,'verb',0);
+opts=parseOpts(opts,varargin);
+rootdir=opts.rootdir; if ( ~iscell(rootdir) ) rootdir={rootdir}; end;
+if ( nargin<4 ) blocks=''; end;
+if ( nargin<3 ) sessions={''}; end;
+if ( ~iscell(sessions) ) sessions={sessions}; end;
+if ( ischar(blocks) && ~isempty(blocks) ) blocks={blocks}; end;
+if ( ~isempty(expt) && (expt(1)=='~' || expt(1)==filesep()) ) % expt with abs path means don't search...
+  rootdir={''};
+end
+filelst=[]; blkdirs=[]; matchDir=[];
+for ri=1:numel(rootdir); % search through diff poss roots
+   subjdir = fullfile(rootdir{ri},expt,subj);
+   if ( ~exist(subjdir,'dir') ) 
+      subjdir=fullfile(rootdir{ri},expt,'subjects',subj);
+      if ( ~exist(subjdir,'dir') ) % no subject specific dirs!
+         subjdir=fullfile(rootdir{ri},expt);
+         if ( ~exist(subjdir,'dir') ) 
+            if ( opts.verb>0 ) fprintf('%d) no dir in : %s\n',ri,subjdir); end;
+            continue; 
+         end;
+      end
+   end
+   if ( opts.verb > 0 ) fprintf('%d) searching in : %s\n',ri,subjdir); end;
+   
+   if ( ~isempty(opts.sessdirregexp) ) % get the session directories
+     if ( opts.verb>1 ) fprintf('\nsessdirregexp="%s"\n',opts.sessdirregexp); end;
+      sessdirs=dir(subjdir); sessdirs=sessdirs([sessdirs.isdir]); sessdirs([1 2])=[]; sessdirs={sessdirs.name};
+      if ( opts.verb > 0 ) fprintf('\t\ttesting %d sessdirs: %s\n',numel(sessdirs),sprintf('%s, ',sessdirs{:})); end;
+      % sess-match says which session entry this dir matches
+      sessmatch=regexpstrmatch(sessdirs,sessions,opts.sessdirregexp); 
+      % remove non-matched entries
+      sessdirs(sessmatch==0)=[]; sessmatch(sessmatch==0)=[];
+      if ( opts.verb > 0 ) fprintf('\t\tmatched %d sessdirs: %s\n',numel(sessdirs),sprintf('%s, ',sessdirs{:})); end;
+      if ( isempty(sessdirs) ) 
+        if( numel(sessions)==1 && isempty(sessions{1}) )
+          if ( opts.verb > 0 ) fprintf('assuming no session dir.\n'); end;
+          sessdirs={'.'}; sessmatch=0;
+        else % if no sess dirs then stop
+          continue; 
+        end; 
+      end
+   else
+      sessdirs={'.'}; sessmatch=0;
+   end
+   % get the block sub-directories, off the session directories
+   % hack to get empty struct of the right shape
+   srchdirs=struct('rootdir',[],'session',[],'block',[],'fname',[]);srchdirs(:)=[];
+   if ( ~isempty(opts.blkdirregexp) )
+     if ( opts.verb>1 ) fprintf('\nblkdirregexp="%s"\n',opts.blkdirregexp); end;
+      for sessi=1:numel(sessdirs);
+         sessdir = sessdirs{sessi};
+         if( opts.verb>0 ) fprintf('%d.%d) searching sessdir: %s\n',ri,sessi,fullfile(subjdir,sessdir)); end;
+         blkdirs = dir(fullfile(subjdir,sessdir));
+         blkdirs = blkdirs([blkdirs.isdir]); blkdirs={blkdirs.name}; blkdirs([1 2])=[];
+         if( opts.verb>0 ) fprintf('\t\ttesting %d blkdirs: %s\n',numel(blkdirs),sprintf('%s, ',blkdirs{:})); end;
+         blkmatch= regexpstrmatch(blkdirs,blocks,opts.blkdirregexp);
+         blkdirs(blkmatch==0)=[]; blkmatch(blkmatch==0)=[];
+         if( opts.verb>0 ) fprintf('\t\tmatched %d blkdirs: %s\n',numel(blkdirs),sprintf('%s, ',blkdirs{:})); end;
+         if ( isempty(blkdirs) ) 
+           if( isempty(blocks) || (iscell(blocks) && numel(blocks)==1 && isempty(blocks{1})) )
+             if ( opts.verb > 0 ) fprintf('assuming no block dir.\n'); end;             
+             blkdirs={'.'}; blkmatch=0;
+           else % if no blk dirs then stop
+             continue; 
+           end; 
+         end
+         % Record which block are in which session directories
+         if ( sessmatch(sessi)==0 ) sess=''; 
+         else 
+           if ( isempty(sessions) || iscell(sessions) && isempty(sessions{1}) ) sess=sessdir;
+           else sess=sessions{sessmatch(sessi)}; 
+           end;
+         end;
+         if ( ~isempty(blocks) ) 
+            if ( isnumeric(blocks) ) blk=num2cell(blocks(min(end,blkmatch))); 
+            else blk=blocks(min(end,blkmatch)); 
+            end;
+         else    blk=num2cell(blkmatch);
+         end
+         for j=1:numel(blkdirs); blkdirs{j}={sess blkdirs{j}}; end; % add session dir to file name
+         srchdir=struct('rootdir',rootdir{ri},'session',sess,'block',blk(:),'fname',blkdirs(:));
+         srchdirs=cat(1,srchdirs,srchdir);
+      end
+   else
+      sess={''};
+      if ( sessmatch ~=0 ) 
+         if( ~isempty(sessions) && ~isempty(sessions{1}) )
+            if (isnumeric(sessions) ) sess=num2cell(sessions(sessmatch)); 
+            else sess=sessions(sessmatch); 
+            end
+         else
+            sess=num2cell(sessmatch);
+         end
+      end
+      for sessi=1:numel(sessdirs);
+         srchdirs(sessi)=struct('rootdir',rootdir{ri},'session',sess{sessi},'block','','fname',{{sessdirs{sessi} ''}});         
+      end
+   end
+
+   % Now we've got a set of directories to search look for matching files
+   for sdiri=1:numel(srchdirs);
+      srchdir = fullfile(subjdir,srchdirs(sdiri).fname{:},opts.dtype);
+      if ( opts.verb > 0 ) fprintf('%d) searching in data-dir : %s\n',ri,srchdir); end;
+      if ( ~exist(srchdir,'dir') ) 
+         srchdir= fullfile(subjdir,srchdirs(sdiri).fname{:});
+         if(opts.verb>0) fprintf('%d) Couldnt find dtype="%s" sub-dir searching in data-dir : %s\n',ri,opts.dtype,srchdir); end;
+       end
+      fnames = dir(srchdir); 
+		if ( ~opts.matchdir ) fnames=fnames(~[fnames.isdir]); end % exclude directories
+		fnames={fnames.name};
+      if ( opts.verb>1 ) 
+        fprintf('file match criteria:');
+        if ( ~isempty(opts.fileregexp) ) fprintf('\t\tfileregexp="%s"',opts.fileregexp); end;
+        if ( ~isempty(opts.excluderegexp) ) fprintf('\t\texcluderegexp="%s"',opts.excluderegexp); end;
+        if ( ~isempty(opts.sessfileregexp) ) fprintf('\t\tsessfileregexp="%s"',opts.sessfileregexp); end;
+        if ( ~isempty(opts.blkfileregexp) ) fprintf('\t\tblkfileregexp="%s"',opts.blkfileregexp); end;
+        fprintf('\n');
+      end
+      for fi=1:numel(fnames); % loop over each file testing its validaty
+         fname=fnames{fi};
+         if ( opts.verb > 0 ) fprintf('\t\t testing file: %s ...',fname); end;
+         fnameinfo=srchdirs(sdiri);
+         fnameinfo.fname=fullfile(srchdir,fname);fnameinfo.shortname=fnames{fi};% info about this file
+         if(~isempty(opts.fileregexp) && isempty(regexp(fname,opts.fileregexp)) ) 
+            if ( opts.verb>0 ) fprintf(' failed fileregexp\n'); end;
+            continue; 
+         end;
+         if(~isempty(opts.excluderegexp) && ~isempty(regexp(fname,opts.excluderegexp)) ) 
+            if ( opts.verb>0 ) fprintf(' failed exclude\n'); end;
+            continue; 
+         end
+         if ( opts.verb > 0 ) fprintf(' fileregex OK, '); end;
+         if ( ~isempty(opts.sessfileregexp) )
+           if ( isempty(sessions) ) 
+             matchstrs=regexp({fname},opts.sessfileregexp,'tokens');
+             if (~isempty(matchstrs)) fnameinfo.session=matchstrs{1}{1}{1};end
+             if ( opts.verb > 0 ) fprintf(' matched session %s, ',fnameinfo.session); end;
+           else
+             [sessmatch,matchstrs]= regexpstrmatch({fname},sessions,opts.sessfileregexp);
+             if ( sessmatch==0 ) if(opts.verb>0) fprintf('failed sessregexp\n'); end; continue; end;
+             if ( isempty(sessions) )    fnameinfo.session = matchstrs{1};
+             elseif ( iscell(sessions) ) fnameinfo.session = sessions{sessmatch}; % record the session we match
+             else                        fnameinfo.session = sessions(sessmatch); % record the session we match
+             end
+             if ( opts.verb > 0 ) fprintf(' matched session %d, ',sessmatch); end;
+           end
+         end
+         if ( ~isempty(opts.blkfileregexp) )
+           if ( isempty(blocks) ) 
+             matchstrs=regexp({fname},opts.blkfileregexp,'tokens');
+             if (~isempty(matchstrs)) fnameinfo.block=matchstrs{1}{1}{1};end
+             if ( opts.verb > 0 ) fprintf(' matched block %s, ',fnameinfo.block); end;
+           else
+             [blkmatch,matchstrs]= regexpstrmatch({fname},blocks,opts.blkfileregexp);
+             if ( blkmatch==0 ) if (opts.verb>0)fprintf('failed blkregexp\n'); end; continue; end;
+             if ( iscell(blocks) ) fnameinfo.block = blocks{blkmatch}; % record the session we match
+             else                  fnameinfo.block = blocks(blkmatch); % record the session we match
+             end
+             if ( opts.verb > 0 ) fprintf(' matched block %d, ',blkmatch); end;
+           end
+         end
+         if ( opts.verb > 0 ) fprintf('\n'); end;
+         if ( opts.verb >= 0 ) fprintf('Matched filename: %s\n',fname); end;
+         filelst=[filelst fnameinfo];
+      end % loop over possible files
+   end % loop over possible dirs
+   
+   if ( ~isempty(filelst) ) break; end; % don't try other roots if found already
+end % rootdirs
+
+if ( isempty(filelst) ) warning('No files found!'); end;
+return;
+
+%--------------------------------------------------------------------------
+function testCase();
+expt = 'own_experiments/auditory/imagery/imagined_music/subjects';
+subjects = {'rutger','rebecca','peter','makiko','alex'};
+sessions = {{''},{''},{''},{''},{''},{''}};
+blockdirregexp = 'bl';
+blocks   = {1:9 1:9 1:9 1:9 1:9};
+dtype    = '';
+blkfileregexp= '.*([0-9]).bdf';
+
+filelst=findFiles_mmm(expt,subjects{1},sessions{1},blocks{1},'blockdirregexp',blockdirregexp,'dtype',dtype,'fileregexp',fileregexp)
+
+expt       = 'own_experiments/auditory/selective_parallel_attention/noisetagging/subjects';
+subjects   = {'jason','joelle'};
+sessions   = {'' ''};
+blockdirregexp='noisetagging';
+blocks     = {1:6 1:6}
+dtype      = 'raw_bdf';
+
+
+expt       = 'own_experiments/test_experiments/comparative_test';
+subjects   = {'rs'};
+sessions   = {'20081111' '' '' '' '' '' ''};
+dtype      = 'raw_bci2000';
+
+blocks = {[4 5 7 8 10 11] [6 9 12]}
+markers= {1:4};
+blockdirregexp='';
+blockfileregexp='.*R([0-9]*).*';
+filelst = findFiles_mmm(expt,subj,session,block,'dtype',dtype,'blockfileregexp',blockfileregexp);

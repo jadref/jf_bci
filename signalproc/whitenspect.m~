@@ -1,0 +1,84 @@
+function [X,muSpect,smth]=whitenspect(X,dim,smth,muCh)
+szX=size(z.X); szX(end+1:max(dim))=1;
+timeD=dim(1);
+accDims=setdiff(1:numel(szX),dim);
+
+% compute mean spectrum over channels/epochs
+% N.B. we do it ourselves rather than via e.g. welch, to save RAM as we don't need the per-xxx values
+% compute average spectrum over all channels/windows/time-points etc..
+if( isempty(opts.muSpect) ) 
+  muCh=opts.muCh;
+  chD=[];
+  if ( strcmp(opts.muCh,'eegonly') )
+	 chD=n2d(z,'ch'); 
+	 muCh=[z.di(chD).extra.iseeg];
+  end;
+
+					  % loop over the data computing the grand average spectrum
+  [idx,chkStrides,nchnks]=nextChunk([],szX,[timeD;chD]);
+  ci=0; if ( opts.verb >= 0 && nchnks>1 ) fprintf('%s:',mfilename); end;
+  muSpect=[];
+  while ( ~isempty(idx) )
+	 muIdx   = idx;
+	 if ( ~isempty(muCh) ) muIdx{chD}=muCh; end % select sub-set of channels of wanted
+    Fx      = abs(fft(z.X(muIdx{:}),[],timeD));
+	 Fx      = msum(Fx,accDims);
+	 if ( isempty(muSpect) ) muSpect = Fx; else  muSpect = muSpect + Fx; end;    
+	 if ( opts.verb>=0 && nchnks>1 ) textprogressbar(ci,nchnks); end;
+    idx=nextChunk(idx,szX,chkStrides);
+  end
+  if ( opts.verb>=0 && nchnks>1 ) fprintf('\n'); end;
+  muSpect = muSpect./prod(szX);
+
+else
+  muSpect=opts.muSpect; muSpect=muSpect(:);
+  if( numel(muSpect) < filtSz ) muSpect(end:filtSz,1)=muSpect(end); end;
+end;
+
+if ( opts.center ) % remove the 0-hz
+  idx={}; for di=1:ndims(muSpect); idx{di}=1:size(muSpect,di); end;
+  idx{timeD}=1;
+  muSpect(idx{:})=0;
+end
+
+%smooth muSpect
+smth=opts.smthlen;
+if ( isempty(smth) && ~isempty(opts.smthhz) ) 
+   fs   = getSampleRate(z);
+   smth = opts.smthhz * (fs/szX(timeD)/2) * 2 ; 
+end;
+if ( ~isempty(smth) )
+  if ( numel(smth)==1 ) % use a gaussian smoother of the given length, N.B. pass band is 1/2 this size!
+	 if ( smth<0 ) smth = szX(timeD)*abs(smth); end; % fractional length 
+    smth=floor(smth/2)*2+1; % ensure odd length and integer
+	 smth=mkFilter(smth,'gaus');
+  end
+  smth=smth./sum(smth);
+  smthMx=spdiags(repmat(smth(:)',size(muSpect,timeD),1),-floor(numel(smth)/2):floor(numel(smth)/2),...
+                 size(muSpect,timeD),size(muSpect,timeD));
+	% shift 0-hz to the middle so that smoothing works correctly
+	muSpect=fftshift(muSpect,timeD);
+   muSpect=tprod(muSpect,[1:timeD-1 -timeD timeD+1:ndims(muSpect)],full(smthMx),[-timeD timeD]);
+	muSpect=ifftshift(muSpect,timeD);
+end
+if ( ~isempty(opts.muReg) )
+	muReg=opts.muReg;
+	if ( muReg<0 ) % cut-off frequency
+		[ans,fIdx]=min(abs(abs(freqs) - abs(opts.muReg)));
+		muReg = max(muSpect(fIdx(1):end));
+	end
+	muSpect(muSpect<=muReg)=1;
+   muSpect(muSpect>muReg)=muSpect(muSpect>muReg) + muReg;
+end
+
+% compute the combined band-pass and normalise filter
+normFilt = 1./max(muSpect,opts.minpow);
+if ( ~isempty(opts.bands) ) 
+  bpFilt   = mkFilter(opts.bands,floor(size(z.X,timeD)/2),fs/size(z.X,timeD));
+  normFilt = bpFilt.*normFilt(1:numel(bpFilt));
+end
+
+% use fftfilter to actually apply the spectral normalization filter
+normFilt=repop(normFilt,'./',sum(normFilt,timeD)); % scale to unit total area
+if ( numel(dim)>1 ) error('not supported yet'); end;
+z.X = fftfilter(z.X,normFilt,[],timeD,0,[],0);

@@ -1,0 +1,1 @@
+function [vec]=tovector(in); vec=in(:);

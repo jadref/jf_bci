@@ -1,0 +1,1 @@
+function [X]=idx(X,varargin); X=X(varargin{:});

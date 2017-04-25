@@ -1,0 +1,1682 @@
+     SHORT MANUAL FOR THE USE OF THE BOUNDARY ELEMENT PROGRAMS
+
+
+
+	             Thom Oostendorp
+
+	Laboratory of Medical Physics and Biophysics
+
+		  Geert Grooteplein N 21
+
+		    6525 EZ Nijmegen
+
+		    The Netherlands
+
+		    
+
+
+
+		1. FILE STRUCTURE
+
+
+
+The most important data files are either triangle files or matrices.
+
+
+
+Triangle files
+
+--------------
+
+An ascii triangle file has the following format:
+
+
+
+ n				n = number of points
+
+ 1  x1  y1  z1			1 = counter;
+
+ .				x1,y1,z1 = coordinates of point 1
+
+ .
+
+ n  xn  yn  zn
+
+ m				m = number of triangles
+
+ 1  i11 i12 i13			1 = counter;
+
+ .				i11, i12, i13 = point indices of the vertices
+
+ .						of triangle 1.
+
+ m  im1 im2 im3  
+
+ 
+
+The counters don't have any meaning, they are for conveniance only.
+
+The vertices are numbered clockwize seen from the outside; this determines the
+
+direction of a triangle.
+
+
+
+A variation of a triangle file is a point file, i.e. a triangle file without
+
+triangles.
+
+
+
+Triangle and point files also exist in two binary formats: the old single
+
+precission version and the new double precission version. All programs work
+
+internally in double precision, but they will read any of the 3 matrix formats:
+
+ascii, old binary or new binary. Also, it doesn't matter whether binary
+
+files are little-endian or big-endian; they will be read correctly (for
+
+programmers: all this functionality is in the function used to
+
+read triangle files (triinp) and the function to read point files (pntinp,
+
+which is actually a macro for triinp)).
+
+
+
+Old binary point- and triangle files have the same structure as ascii 
+
+matrices, with long integers for the integer entries , and 4-byte floats 
+
+for the floating entries. 
+
+
+
+New binary point files have the following structure:
+
+
+
+8 bytes		";;mbfpnt"	(magic number)
+
+1 byte  	bigendian	true if file is bigendian
+
+4 bytes		headersize	number of bytes in header; normally 11
+
+<begin of header>
+
+1 byte		data sign	0=unsigned, 1=signed
+
+1 byte		data type	0=integer, 1=floating
+
+1 byte		data size	number of bytes per element
+
+4 bytes 	number of points
+
+4 bytes 	number of coordinates per point (normally 3)
+
+<end of header>
+
+		<points>	first point 1, then point 2, etc;
+
+				normally 8-byte floats.
+
+
+
+New binary triangle files have the following structure:
+
+
+
+8 bytes		";;mbftri"	(magic number)
+
+1 byte  	bigendian	true if file is bigendian
+
+4 bytes		headersize	number of bytes in header; normally 16
+
+<begin of header>
+
+1 byte		data sign	0=unsigned, 1=signed
+
+1 byte		data type	0=integer, 1=floating
+
+1 byte		data size	number of bytes per element
+
+4 bytes 	number of points
+
+4 bytes 	number of coordinates per point (normally 3)
+
+1 byte		index size	number of bytes per triangle index
+
+4 bytes 	number of triangles
+
+4 bytes 	number of vertices per 'triangle' (normally 3)
+
+<end of header>
+
+		<points>	first point 1, then point 2, etc;
+
+				normally 8-byte floats.
+
+		<indices>	firt triangle 1, then triangle 2, etc;
+
+				normally 4-byte integers
+
+
+
+triangle files are accepted when point-files requires as input.
+
+
+
+Most programs will write point and triangle files in (new) binary format.
+
+
+
+Matrix files
+
+------------
+
+Matrix files can be in either ascii or binary format. Of the latter one there
+
+are 2 versions; the old single precission version and the new double precission
+
+version. All programs work internally in double precision, but they will read
+
+any of the 3 matrix formats, wether ascii, old binary or new binary. Also, 
+
+it doesn't matter whether binary files are little-endian or big-endian; they
+
+will be read correctly (for programmers: all this functionality is in the only
+
+function that is used to read a matrix: getmatrix).
+
+
+
+Ascii matrices have the following format:
+
+
+
+m n				m = number of rows; n = number of columns
+
+a11 a12 ... a1n			
+
+.				The actual layout is not important, as long  
+
+.				as all items are separated by "whitespace"   
+
+am1 am2 ... amn			(i.e. spaces, tabs and newlines).            
+
+[tail]
+
+
+
+The tail is optional. It consists of a number of lines in
+
+the following format:
+
+
+
+parameter_name_1
+
+paramater_value_1
+
+parameter_name_2
+
+paramater_value_2
+
+...
+
+
+
+paramater_name_<i> is a string defining some parameter, like 
+
+"sample frequency", and parameter_value_<i> is a string defining the
+
+value of that parameter, like "500 Hz".
+
+Some programs use the tail to read additional information about the data stored
+
+in the matrix.
+
+
+
+Old binary matrices have the same structure as ascii matrices, with long
+
+integers for m and n, and 4-byte floats for the elements. These matrices can
+
+also have a tail. 
+
+
+
+New binary matrices have the following structure:
+
+
+
+8 bytes		";;mbfmat"	(magic number)
+
+1 byte  	bigendian	true if file is bigendian
+
+4 bytes		headersize	number of bytes in header; normally 11
+
+<begin of header>
+
+1 byte		data sign	0=unsigned, 1=signed
+
+1 byte		data type	0=integer, 1=floating
+
+1 byte		data size	number of bytes per element
+
+4 bytes 	number of rows
+
+4 bytes 	number of columns
+
+<end of header>
+
+		<data>		first row 1, then row 2, etc;
+
+				normally 8-byte floats.
+
+
+
+This can optionally be followed by a tail as in ascii-matrices.
+
+
+
+Most programs will output (new) binary matrices; they are smaller and faster to
+
+read and write. The programs mat2bin and mat2asci convert matrices to binary
+
+and ascii format. The tail is preserved in this process.
+
+Some machines store binary data in big-endian format; others in little-endian.
+
+The programs autodetect whether a binary file is stored in native or
+
+foreign binary format, ad convert the data if necessary. Consequently,
+
+binary files can be transported between different computer systems.
+
+
+
+Sparse matrix files
+
+-------------------
+
+The is a special format for sparse matrices. Some programs, like checkmat,
+
+mat2asci and mat2bin will accept both normal and sparse matrix files as input,
+
+most other programs will accept only the type of matrix they aspect.
+
+
+
+Sparse matrix files can be in either ascii or binary format. 
+
+All programs read sparse matrix files will read them recardless wether they 
+
+are in ascii or binary. Also, it doesn't matter whether binary files are 
+
+little-endian or big-endian; theywill be read correctly (for programmers: 
+
+all this functionality is in the only function that is used to read a 
+
+matrix: getmatrix).
+
+
+
+Sparse ascii matrices have the following format:
+
+
+
+m n k				m = number of rows; n = number of columns
+
+				k = maximum number of non-zero elements
+
+				    in any row.
+
+ni1 i11 i12 ..i<ni1>		ni1 = number of non-zero elements in row 1
+
+.				i11 = index of first non-zero element, etc.
+
+.			
+
+nin in1 in2 ..i<nin>
+
+a11 a12 ... a1n			the matrix elements
+
+.				The actual layout is not important, as long  
+
+.				as all items are separated by "whitespace"   
+
+am1 am2 ... amn			(i.e. spaces, tabs and newlines).            
+
+[tail]
+
+
+
+The tail is optional. It consists of a number of lines in
+
+the following format:
+
+
+
+parameter_name_1
+
+paramater_value_1
+
+parameter_name_2
+
+paramater_value_2
+
+...
+
+
+
+paramater_name_<i> is a string defining some parameter, like 
+
+"sample frequency", and parameter_value_<i> is a string defining the
+
+value of that parameter, like "500 Hz".
+
+Some programs use the tail to read additional information about the data stored
+
+in the matrix.
+
+
+
+Sparse binary matrices have the following structure:
+
+
+
+8 bytes		";;mbfspr"	(magic number)
+
+1 byte  	bigendian	true if file is bigendian
+
+4 bytes		headersize	number of bytes in header; normally 15
+
+<begin of header>
+
+1 byte		data sign	0=unsigned, 1=signed
+
+1 byte		data type	0=integer, 1=floating
+
+1 byte		data size	number of bytes per element
+
+4 bytes 	number of rows
+
+4 bytes 	number of columns
+
+4 bytes 	maximum number of non-zero elements in any row
+
+<end of header>
+
+		<indices>	number of non-zero elements in row 1,
+
+				indices of the non-zero elements in row 1,
+
+				etc, all in 4-byte integers.
+
+		<data>		first row 1, then row 2, etc;
+
+				normally 8-byte floats.
+
+
+
+This can optionally be followed by a tail as in sparce ascii-matrices.
+
+
+
+
+
+
+
+Some other file formats:
+
+
+
+Electrode files specify the electrode positions on a trangle file.
+
+There are two types, with the following formats:
+
+
+
+type A:
+
+
+
+n				n = number of electrodes
+
+1 e1 [!name1]			e1 = point index of electrode 1; so the
+
+.				electrodes are a subset of the points
+
+.				of the triangle file.
+
+n en [!namen]
+
+
+
+
+
+type B:
+
+
+
+n				n = number of electrodes
+
+t1 l1 m1   [!name1]		t1 = index of triangle on which electrode 1
+
+.				resides
+
+.				l1, m1 are the lambda-mu parameters specifying
+
+tn ln m1   [!namen]		the position whithin the triangle (see below)
+
+
+
+In the last type, the electrodes are not points of the triangle file.
+
+Their position is specified by "lamba-mu" parameters: if the triangle on which
+
+the electrode resides has vertices A, B and C, then the electrode position r
+
+is: r = r(A) + lambda*(r(B)-r(A)) + mu*(r(C)-r(A)). 
+
+The programs will asume for the potential V at the electrode:
+
+V = V(A) + lambda*(V(B)-V(A)) + mu*(V(C)-V(A)). 
+
+
+
+for both types the "name" part is optional. This name will be used by the
+
+programs "triplot" and "sigplot".
+
+
+
+A gradiometer description file defines the position of the gradiometer
+
+discretization points with respect to an observation point, and the contribution
+
+of the discretization point. For instance, a 2nd order gradiometer with coil
+
+distance of 10 cm and in which each coil is discretized by one point whould have
+
+the following gradiometer description file:
+
+
+
+3					Number of elements
+
+1  0.0  0.0  0.0  0.0  0.0  1.0		position of element 1 relative to an
+
+2  0.0  0.0  0.1  0.0  0.0 -2.0		observation point and the contribution
+
+3  0.0  0.0  0.2  0.0  0.0  1.0		of the x,y and z component of the field
+
+					at that position to the gradiometer
+
+					field.
+
+
+
+If one needs more discretizations points per coil, they can simply be added
+
+with the correct weights in this description.
+
+
+
+
+
+			2. UTILITY PROGRAMS
+
+
+
+2.1 Plotting programs
+
+
+
+The most important plotting program is TRIPLOT. It is used to plot trangle 
+
+files and functions defined on it. It has an extensive help. The helpfile is 
+
+ascii (triplot.hlp), it might be useful to make a print of it. The file 
+
+triplot.hlp (and for the ms-dos version the files .bgi and .chr) must be in 
+
+the path.
+
+
+
+The main features are:
+
+
+
+read triangle file (file command)
+
+plot the triangle set (plot)
+
+scale the triangle file (scale, center)
+
+rotate the triangle set (phi, theta, gamma)
+
+translate the triangle set (origin)
+
+change the perspective (obsdis)
+
+plot a crosssection of the triangle set (cross, crossdis)
+
+plot the triangle set with a simulateds light source (light on)
+
+read in a matrix file (funfile). Each column is considered to be a function
+
+    defined on the triangle set. for more info see "help funfile".
+
+select a column (column)
+
+plot isofunction lines (isoplot, step)
+
+plot the function in a color scale (funplot, funscale)
+
+
+
+Change to a different display (disf). The default display for msdos is vga:.
+
+  You can change to super vga by entering 'disf svga:'.
+
+Load a colormap (cmap).
+
+
+
+Make a copy of the display to printer (copy). This command uses the program
+
+  prtscr.exe. The default printer type is epson. You can use for instance a
+
+  hp printer by entering 'copy hp'. By adding a filename, the copy is made to
+
+  file rather than to printer. A preffered way to print a display is to set disf
+
+  to ps:filename, which will produce a high resolution, grey scale postscript
+
+  file, printable on a postscript printer.
+
+  
+
+Record and replay command (record, replay, @).
+
+
+
+Another useful plot program is SIGPLOT. 
+
+This program has commands simular to TRIPLOT. Print out the helpfile for more
+
+specifics. It might be useful to make aliases or batfiles to use sigplot,
+
+like: 
+
+
+
+alias mcgplot "sigplot -layout /home9/thom/bin/mcg.lay -unit pT -scal 50"
+
+
+
+2.2 Triangle utilities
+
+
+
+MAKECYL	 generate a triangulated cylinder
+
+         Enter "makecyl -h" to get help.
+
+MAKESPHERE generate a triangulared sphere
+
+	 Enter "makesphere -h" to get help.
+
+PNT2TRI	 generate a triangle file from a point file
+
+ADDTRI	 concatenate two triangle files
+
+ROTATE	 rotate a triangle file
+
+TRANSL	 translate a triangle file
+
+SCALE    scale a triangle file
+
+TRICHECK check the consistency of a triangle file
+
+LOCATE	 Check wether points are within a triangle file
+
+TRISECT	 Check wether two triangle files intersect
+
+TRIEDGE	 Re-arrange edges to make triangles less skewed
+
+	 Note: there is no guarantee that the result is a valid
+
+	 triangulated surface; use TRICHECK to check
+
+MAKEGRID generate an observation grid (for gdipoli)
+
+	 to enable plotting of maps by PLOT.
+
+TR2PLANE creates a triangulated planar cross-section of of triangle file.
+
+          enter "tr2plane -h" for help.
+
+EEGELEC	 generate an EEG-electrode file for a triangulated geometry
+
+	 (preferably a head), using a reference point file containing
+
+	 the coordinates of respectively the nasion, inion, left and
+
+	 right preauricular point. An extensive set of electrodes is
+
+	 created, from which the ones needed may be selected manually.
+
+EAR2PRE  translate a reference point file containing the coordinates of
+
+         respectively the nasion, inion, and the centers of the left and
+
+	 right ear channels, to a  reference point file containing the
+
+	 coordinates of respectively the nasion, inion, and the left
+
+	 and right preauricular points. The ear channels are generally
+
+	 must easier to recognize in MRI's than the pre-auricular
+
+	 points.
+
+PNT2ELEC project points in space to a triangle file and compute corresponding
+
+	 lambda and mu parameters (to make electrode file).
+
+ELEC2TRI converts a triangulated geometry + electrode description in
+
+	 lambda-mu description to a triangulated file in which the electrodes
+
+	 are vertices and a corresponding electrode description in vertex
+
+	 description.
+
+LAPCAL	 Computes for a triangulated geometry the transfer matrix that 
+
+	 converts the potential at all vertices to the (estimated) Laplacian
+
+	 at all vertices. For use with lapint (see next): give "Area
+
+	 normalization> no".
+
+LAPINT	 creates a transfermatrix that expands electrode potentials to potential
+
+	 at all vertices. The input is a triangulated geometry in which the
+
+	 electrodes are vertices (can be created by elec2tri) and the
+
+	 corresponding Laplacian matrix (created by lapcal). By subsequently
+
+	 using "mul" (see matrix utilities) potentials at all vertices are
+
+	 computed from electrode potentials.
+
+SUBSET	 can be used to create an interpolated surface function on a
+
+	 triangulated surface from the surface function on a different
+
+	 triangulated surface that partialy coincides with the first
+
+	 surface. "subset -h" for more info.
+
+
+
+Some remarks regarding PNT2TRI:
+
+- The point file must consist of contours which are more or less in one plane
+
+  each. The index of the first point of a contour should be negative to
+
+  indicate the start of a new contour. The first and last contour should contain
+
+  either 1 or 2 points.
+
+- There are different ways in which this programs can generate a triangulation:
+
+  * Shortest total Surrounding difference (S) or shortest Diagonal (D)
+
+    criterion:
+
+     The first one minimizes the relative length along the contours in the
+
+     choice of a new triangle; the second one minimizes the length of the new
+
+     diagonal.
+
+  * With transformation:
+
+     If this option is enabled, the contours are transformed to the their center
+
+     of mass before triangulation and scaled to unity.
+
+  * Smallest Area (A) or shortest Diagonal (D) criterion:
+
+     The first one chooses the triangulation with minimum area (smallest
+
+     surface), the second one with minumum diagonal length.
+
+The program is not garanteed to generate a valid triangulation, but for not too
+
+weird geometries it usualy works. For very non-convex geometries in which the
+
+shape of neighbouring contours are disimular it is advisable to try several
+
+options, and compare the results.
+
+     
+
+NB: the procedure to create a nice triangulation of a torso in which the
+
+electrodes are the first vertices is described in ~thom/bem/tortri.man.
+
+
+
+2.3 Matrix utilities
+
+
+
+MAT2ASCI Convert a matrix file to an ascii format
+
+MAT2BIN  Convert a matrix file to a binary format
+
+BESA2MAT Convert a BESA file to a binary matrix
+
+CHECKMAT Print information about a matrix file
+
+TRANSPOS Transpose a matrix file
+
+ADD	 Add two matrices
+
+MUL	 Multiply two matrices
+
+	   if the first matrix has one column, it will be interpretted
+
+	   as a diagonal matrix of apropriate size.
+
+SCALMUL	 Multiply matrix by scalar
+
+SVD	 Generate a singular value decomposition
+
+RELDIF	 Compute relative difference between 2 matrices
+
+MAXDIF	 Compute maximum difference between 2 matrices
+
+RMS	 Compute mean and rms of a signal matrix
+
+MATCCAT	 Concatenate matrices top-bottomwize
+
+MATRCAT	 Concatenate matrices left-rightwize
+
+MATSEL	 Select a submatrix from a matrix
+
+REFELEC	 shift rows in a matrix representing measured data in such a way,
+
+	   that a specified row (reprenting the reference electrode) will
+
+	   be shifted to zero. If more than one row is specified, the average
+
+	   of the rows concerned will be regarded as reference.
+
+ELPOT	 converts a matrix file containing potentials at the vertices of
+
+	   a triangle file to a matrix file containing potentials at electrodes
+
+	   at that triangle file
+
+
+
+Most program accept the name of the in- and outputfiles on the command line;
+
+e.g. "mul m1 m2 m3": m3 will be m1*m2. "mat2asci file" will convert <file>
+
+to an asci-matrix, using the same filename.
+
+
+
+2.4 Further utilities
+
+
+
+SINTPOL	 Spline interpolate a signal			       sintpol	m1 m2 fr
+
+ADDNOISE Add noise to a set of signals (i.e. a matrix)	       addnoise m1 m2
+
+DOS2UNIX convert from dos ascii format to unix ascii format    dos2unix f1 [f2]
+
+UNIX2DOS convert from unix ascii format to dos ascii format    unix2dos f1 [f2]
+
+SPHERE4	 compute the potential at 4 concentric spheres
+
+	 generated by a dipole
+
+ARROWS	 creates triangulated arrows according positions, size and direction 
+
+	 in matrix file(s)
+
+
+
+
+
+		3. BOUNDARY ELEMENT PROGRAMS
+
+
+
+3.1 dipoli
+
+
+
+The program dipoli is used to solve the forward and inverse problem for a
+
+dipolar source in the electric case. The input is streight forward. Some notes:
+
+
+
+- default conductivity is 1.
+
+
+
+- stop adding compartments by entering an empty line.
+
+
+
+- intersecting compartments are not allowed. Touching compartments are,
+
+  provided that in the area where they touch, the vertices match exactly.
+
+  
+
+- Only one compartment may be in contact with "the oudside world".
+
+  If you need two compartments in contact with the outside, you can
+
+  let one envelope the other, so that the inner one touches the outer
+
+  one from within.
+
+
+
+- preceed the name of the "isolated source" compartment (if wanted) by "!".
+
+  An "isolated source" compartment is used to prevent the numerical
+
+  inaccuracy in the BEM method that results if a well-conducting medium
+
+  containing the source(s) is surrounded by a poorly-conducting medium.
+
+  The well-conducting compartment containing the source is the "isolated
+
+  source" compartment.
+
+
+
+- the electrodes are assumed to be located at the first compartment entered;
+
+  this is not necessarily the outer compartment. If the electrode file
+
+  refers to triangle or vertex indices beyond the number of triangles/vertices
+
+  of the first compartment, they are located at the next one.
+
+
+
+- if you don't enter the name of an electrode file, all points of the first
+
+  compartment entered are assumed to be electrodes; if you enter "*" as
+
+  the name, all vertices of all compartments are assumed to be
+
+  electrodes.
+
+
+
+- the source file is a point file containing the (first estimate of the)
+
+  source position(s).
+
+
+
+- if you don't enter the name of a matrix file containing observed data,
+
+  the program will do the forward problem only. The output will be a
+
+  transfer matrix.
+
+
+
+- Observed data are in a matrix file. Each row is the potential at an electrode
+
+  as a function of time. The number of rows should fit the number of electrodes,
+
+  the number of columns is considered to be the number of time samples.
+
+
+
+- There are 4 possible constraints on source position:
+
+  * fixed:      the source must be at the source given position.
+
+  * stationary: the source may be anywhere, but the position must be the same
+
+  		for all time samples. The optimal position (i.e. best fitting
+
+		the data) will be put out in a point file.
+
+  * moving:	the source can be at any position at any time sample. The
+
+  		optimal position as a function of time will added to the
+
+		source description output.
+
+  * symmetric:  the position of the source is symmetric to another source.
+
+                The symmetry plane is determined by the initial positions
+
+                of the sources.
+
+
+
+- There are 3 possible constraints on source direction:
+
+  * free:       the source direction may vary in time.
+
+  * stationary: the source direction must be the same for all time samples. 
+
+  * symmetric:  the source direction is symmetric to another source.
+
+                The symmetry plane is determined by the initial positions
+
+                of the sources.
+
+
+
+- Source constraints may be added at the bottom of the "source file" (initial
+
+  estimate) using the following syntax:
+
+
+
+        <source index> <constr 1> <constr 2> ...
+
+
+
+      Where <constr> =   position    ( fixed | stationar | moving | 
+
+                                       symmetric to < source index> )
+
+                    or   orientation ( free | stationar | 
+
+                                       symmetric to <source index>)
+
+                    or   symmetric to <source index>
+
+		       
+
+  Default is "position fixed orientation stationar". If for no source
+
+  constraints are given in the source file, the program will ask for general
+
+  constraints.
+
+
+
+- The output source description file is a matrix, with the number of rows equal
+
+  to the number of linear source parameters (1 for a dipole of stationar
+
+  direction, 3 for a dipole of free direction), where the first row(s)
+
+  correspond to the first dipole, the next row(s) to the second one, etc.
+
+  to 3 (x, y and z component of the dipole), and the number of columns equal to
+
+  the number of time samples. For a 'moving dipole' source constraint, there are
+
+  3 additional rows: the x, y and z component of the dipole position.
+
+
+
+- Output files with extension ".sd" contain the standard deviation of the
+
+  source parameters, assuming that all error is the result of
+
+  white noise in the data.
+
+
+
+- The output potential is the model potential in a forward sense.
+
+
+
+- If all vertices of the first triangle file or of all triangle files are
+
+  electrodes, the tranfer matrices and potential matrices created by dipoli 
+
+  contain in their tail lines of the format:
+
+  
+
+    geometry file[s]
+
+    f1-l1: name1
+
+    f2-l2: name2
+
+    ...
+
+
+
+  Rows f<i> to l<i> of the data matrix contain data corresponding to the
+
+  vertices of name<i>. This tail is used by triplot to pick the right
+
+  data from the data matrix.
+
+
+
+If the same geometry is used many times, it is advisable to use the -i option:
+
+"dipoli -i[nitiate] [filename]". If you use this option the "A" matrix is
+
+inverted and stored. This takes some extra time, but now you can use the
+
+inverted "A" matrix in subsequent runs of dipoli, which is much faster.
+
+For this purpose, enter as the command line "dipoli filename".
+
+(Try "dipoli -h" to get some help on the dipoli program).
+
+
+
+The boundary element programs support unix style input and output rediction
+
+(see 5.4).
+
+
+
+There are a number of files corresponding to geometries and measurements of our
+
+favorite subject GU. All the filenames start with gu. These are nice to use as
+
+examples.
+
+
+
+3.2 gdipoli
+
+
+
+The program gdipoli is used to solve the forward and inverse problem for a
+
+dipolar source in the magnetic case. The input is simular to that of dipoli.
+
+The main difference in input is that gdipoli ask for a gradiometer description
+
+file (see section 1), and a file that defined the observation points at which
+
+the field was measured.
+
+
+
+If the observation file is a normal point file, the program gdipoli will 
+
+define measurement discretization points by adding the positions defined in the
+
+gradiometer description to each observation point. The direction and strength
+
+of the gradiometer in this case equal to the direction and strength as defined
+
+in the gradiometer description file.
+
+
+
+If in the observation file each position is followed by a direction, the
+
+gradiometer is rotated to this direction (position and strength), under the
+
+assumption that the gradiometer descrition file contains the correct orientation
+
+for a gradiometer allong the z-direction.
+
+
+
+If the gradiometer configuration is different at different observation points,
+
+they cannot be described by a single gradiometer description file. In this case,
+
+one should not enter a gradiometer description file name (just enter an empty
+
+line), and the gradiometer configuration should be included in the observation
+
+file. In this case, the observation file should have the following format:
+
+
+
+nobs ngrad 
+
+1 x11 y11 z11 dx11 dy11 dz11 x12 ... dz1<ngrad> 
+
+.  
+
+.  
+
+<nobs> ...
+
+
+
+nobs is the number of observation points, and ngrad is the number of gradiometer
+
+discretization points (the number of gradiometer discretization points must be
+
+the same for all observation points). (x11, y11, z11) are the coordinates of the
+
+first gradiometer discretization point of the first observation point.  (dx11,
+
+dy11, dz11) is the contribution of the x, y and z-component of the magnetic
+
+field to the gradiometer field for that discretization point.  The gradiometer
+
+field at observation point 1will be computed as
+
+
+
+sum_(i=1)^ngrad B(x1i,y1i,z1i).(dx1i,dy1i,dz1i)
+
+
+
+
+
+
+
+3.3 Other programs: monopoli, double, gdouble
+
+
+
+These programs are analogons of dipoli for monopoles and double layers
+
+respectively.
+
+
+
+some remarks about source strength in double and gdouble:
+
+double computes the transfer function for a uniform double layer of strength 1.
+
+The dimension of the strength is dipole strength per surface. The unit may be
+
+Am/m^2 (=A/m). Often the strength of a double layer is given in mV. This is the
+
+potential step for an observer passing through the double layer. The relation
+
+this step DV, and the source strength, S, is: DV=S/sigma.
+
+The strength of the double layer source can be incorporated into the transfer
+
+matrix computed by double by scalmul, which multiplies the matrix by a scalar.
+
+For a double layer of strength 40 mV in a medium of 0.2 Mho/m, there are 2 ways
+
+to get the correctly scaled transfer matrix:
+
+1. enter as conductivity in double 1 Mho/m, and scale afterwards by 40.
+
+2. enter the correct conductivity 0.2 Mho/m, and scale by the correct source
+
+   strength 40*0.2=8.
+
+   
+
+For gdouble, note that the overal value of the conductivity is of no consequence
+
+to the magnetic field. So, in the previous example, whatever you enter as
+
+conductivity, you must scale by the double layer strength in A/m.
+
+
+
+The sources of these programs are very short. They contain mainly calls to
+
+functions. This makes it easy to make simular programs. I am planning to make
+
+the programs quadrupoli (one pure quadrupole) and multipoli 
+
+(one dipole+quadrupole). 
+
+
+
+3.4 dipinf
+
+
+
+Computes the potential at the points specified in standard geometry files
+
+for an infinite medium of conductivity 1; its output can be used by inf2bound.
+
+
+
+3.5 inf2bound
+
+
+
+Computes bounded medium potentials from supplied inifinite medium potentials
+
+at all vertices of the geometry (can be computed e.g. by dipinf). The program
+
+is similar to dipoli; e.g. you can specify the points where you want to know
+
+the potential by an electrode file; if you give no electrode file, all vertices
+
+of the first geometry are taken as "electrodes".
+
+Make sure that the infinite medium potentials at *all* vertices of *all* 
+
+geometries are given, and that the order in which they are given in the matrix
+
+file correspond to the order in which the geometry files are entered in
+
+inf2boun.
+
+Of course, inf2bound cannot perform inverse computations.
+
+
+
+3.6 interama
+
+
+
+To compute the potential at a number of arbitrary points within the volume 
+
+conductor, a special inverted a-matrix can be computed by interama. This will
+
+result in an A-matrix corresponding to "electrodes" within the volume
+
+conductor. The A-matrix constructed by interama can be used by any of the
+
+(electric) boundary element programs.
+
+The set of points where the potential is to be computed (the observation file)
+
+may be either a point or a triangle file. It may be useful to use a 
+
+triangulated planar cross-section of a geometry file as observation file; the
+
+result can then be displayed by triplot. tr2plane creates such a cross-section.
+
+
+
+3.7 A note on pre-computed A-matrices
+
+
+
+Many of the BEM programs construct a precomputed (inverted) A-matrix when 
+
+the -i option is used. As the A-matrix contains no source information (geometry
+
+information only), the precomputed A-matrix constructed by dipoli is the same
+
+as the one constructed by double or any other program, and the can be
+
+interchanged. Of course, there is a difference between electric and magnetic
+
+A-matrices.
+
+
+
+
+
+		4. EXAMPLES
+
+		
+
+The standard distribution contains some examples: 
+
+
+
+head162.lm	electrode file for subset of 10-20 on head162.tri
+
+head162.ama	precomputed a-matrix for full geometry:
+
+		head162.tri,  cond=0.2
+
+		skull162.tri, cond=0.02
+
+		brain162.tri, cond=0.2  (isolated source compartment)
+
+		head162.lm    electrode specification
+
+head162.src	sample 2-dipole source file
+
+head162.tra	transfer matrix of head162.src for full geometry
+
+head162.dip	sample dipole strength file matching head162.src; 
+
+		representing a horizontal dipole with with strength 
+
+		varying sinuslike over one period and a vertical one
+
+		varying two periods 
+
+head162.mes	simulated measurements for sources head162.src with strength
+
+		head162.dip; can be used to test dipoli.
+
+head1620.src	slightly moved version of head162.src
+
+
+
+headhom.ama	homogeneous version of head162.ama
+
+headhom.tra	homogeneous version of head162.tra
+
+headhom.mes	homogeneous version of head162.mes
+
+
+
+Try dipoli by adding noise to the measurements (addnoise), including different
+
+constraints in the source file, etc.
+
+
+
+You can easily create simulated data by multiplying tranfer matrices by
+
+strength matrices; this is the way the above examples were created.
+
+
+
+
+
+
+
+		5. NOTE  ON SOURCES AND COMPILING
+
+		
+
+4.1 Sources.
+
+
+
+There are a number of files that contain the functions to be called by programs.
+
+Most of these are listed in the header file trilib.h.  These files are ment to
+
+be inserted in a library.
+
+
+
+The plot programs use graphic functions in the file draw.c. In this file there
+
+are drivers for a lot of different graphic systems. 
+
+
+
+An important file is "systemid.h". From this file the compiler will determin
+
+wether the system is "MsDos" or "unix", and compile the appropriate part
+
+of the source. This is mainly important for the graphics in "draw.c".
+
+
+
+The boundary element programs use functions in the file forwinv.c.
+
+
+
+4.2 Libraries & compilation.
+
+
+
+4.2.1 msdos
+
+
+
+The compiler used on msdos is the borland c compiler. The compiler is started by
+
+gving the command "bc". A number of warning messages are disabled (like 
+
+"variable declared but never used").
+
+
+
+I have made some libraries using the "project" option in the Borland C compiler
+
+for the functions (BEM.LIB) and (DRAW.LIB). The project files are called BEM.PRJ
+
+and DRAW.PRJ.
+
+
+
+For compiling programs I use the following bat-file:
+
+
+
+@echo compiling %1 ...
+
+@bcc %1.c bem.lib draw.lib graphics.lib >%1.lis
+
+@type %1.lis
+
+
+
+4.2.2 Unix
+
+
+
+There are 2 different directories containing sources: /thom/c contains the
+
+sources of the plot programs, and /thom/bem/c contains the sources. The
+
+directory /thom/bem is meant to be used as working directory for the boundary
+
+element programs.
+
+
+
+Compilation on unix is very easy. Files containing function only never have to
+
+be actively compiled, as any compilation of a program will automatically detect
+
+whether any source has been changed. To compile a program, just enter "comp
+
+'name'". This will activate the so called "make" utility. There is a file called
+
+"makefile", in which there is defined what sources to compile, how to add them
+
+to which library, etc.
+
+
+
+
+
+		6. A NOTE ON USING UNIX ON THE IBM WORKSTATION
+
+		
+
+5.1 How to get in.
+
+
+
+Switch on the computer (this takes some 5 minutes), and when asked for
+
+"console login" enter "thom". The password also is "thom". I have made
+
+installation such, that the command shell csh (C Shell) is started. This
+
+is a well known unix command shell, on which there are many books. At login
+
+the shell executes the commands in the file ".cshrc". I have made some aliases
+
+in this file, in order to enable the use of dos-like commands (dir, copy, del,
+
+type etc.). Just have a look at this file.
+
+
+
+For running programs that don't use graphics, you can use this environment. If
+
+you want to use graphics, you have to start the X11 environment, by entering the
+
+command xinit. This will execute the commands in .xinitrc. In this environment
+
+there are a number of windows, which can be selected by clicking on them.
+
+Also new windows can be started.
+
+
+
+5.2 How to get out.
+
+
+
+A workstation should not be just switched off like a pc. To leave the system,
+
+first press simultaneously Control, Alt an Backspace. This will abort the X11
+
+environment. Then enter logout. Now login using the name "root", and the
+
+password "elisa" (be carefull, now you have extensive authority). The X11 system
+
+will automatically start. Abort it like before, and now enter "shutdown". Now
+
+wait a minute or two, until the systems tells you that it has stopped, and
+
+switch it off.
+
+
+
+5.3 Copying files from or to floppy.
+
+
+
+You can use the command "getdos filename" to copy a file from floppy, and
+
+"putdos filename" to copy to floppy. The last command takes a lot of time.
+
+In fact these commands are scripts at /thom/bin. You can look at them as an
+
+example how to make scripts.
+
+
+
+5.4 Using unix.
+
+
+
+Unix has some very nice features. You should read a book about it. Most
+
+important and useful features are input and output redirection and piping.
+
+
+
+In unix a program read from standard input and writes to standard output.
+
+Normally these both are linked to the console, but you may redirect standard
+
+input to a file by typing "program < infile", in which "program" is the name of
+
+the program and "infile" is the name of the file. Now the input command are read
+
+from the file. Simulary one can redirect the output: "program > outfile". Of
+
+course you can do both simultaneously.
+
+
+
+You can also redirect the output of one program to the input of another without
+
+using files. This is called piping. For instance, a directory may take more than
+
+one page of output, which is inconvenient. There is a unix program called
+
+"more", that displays its input page by page. You can now construct a pipe in
+
+the following way: "dir | more". Now the output of dir is used as the input of
+
+more, and the result is that you see the directory page by page.
+
+
+
+Unix is a true multitasking system. You can let a program run in the background
+
+by entering "program &". You can now continue doing other things, while the
+
+program is running. You can stop a forground program by typing Control-Z.
+
+If you at a later stage enter "fg" the program continues. If you have more
+
+stopped programs, you have to enter "fg 1" to get program 1 back again.
+
+A stopped program can be put into the background by entering "bg" or "bg 1".
+
+
+
+A very useful unix program is grep. You can search files for the occurence
+
+of a string by entering "grep string *.c" or something simular.
+
+
+
+5.5 The VI editor.
+
+
+
+The only editor available at the ibm workstation is the vi editor. To edit a
+
+file, enter "vi filename". The editor has a separate command and insert mode.
+
+To insert text, enter the insert mode by typing "i". You can leave the insert
+
+mode by typing "Escape".
+
+Some usefull commands:
+
+i	enter insert mode
+
+Esc	leave insert mode
+
+x	delete character
+
+dd	delete line
+
+/string	search voor string
+
+/	search again for string
+
+:q	quit
+
+:q!	quit changes
+
+:wq	save changes and quit.
+
+
+
+5.6 The X11 environment
+
+
+
+In X11 there are a number of windows at the screen. A window might be a
+
+terminal, or a graphics display. A window is selected by clicking on it.
+
+Now you can give input to that window. You can also move and resize windows.
+
+A new terminal can be opened by typing "aixterm &".
+
+
+
+If a window uses a lot of colors, it may need a private colormap. In that case
+
+you will only see the colors of that window if it is selected.
+
+
+
+
+
+P.S. This file is called bem.man
+

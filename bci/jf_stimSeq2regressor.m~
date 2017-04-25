@@ -1,0 +1,23 @@
+function [z]=jf_stimSeq2regressor(z,varargin);
+[Y,Ydi,target,targetSeq]=stimSeq2regressor(z,'zeroLab',1,'compressSymbStim',0);
+% N.B. Y = [ nSamp x nSeq x nSymb x nStim ]
+% limit to the true target for each sequence to get the true-target values
+if ( size(Y,2)==1 ) % same stim-seq for every epoch
+  Ytgt = Y(:,:,target,:); % -> [ nSamp x 1 x nSeq x nStim ]
+  Ytgt = reshape(Ytgt,[size(Ytgt,1) size(Ytgt,3) size(Ytgt,4)]); % [ nSamp x nSeq x nStim ]
+  Yditgt= [Ydi(1); z.di(n2d(z,-1)); Ydi(4:end)];
+else
+  Ytgt = zeros(size(Y,1),size(Y,2),1,size(Y,4)); % [ nSamp x nSeq x nStim ]
+  for ei=1:numel(target);
+	 Ytgt(:,ei,:) = squeeze(Y(:,ei,target(ei),:));
+  end
+  Yditgt = Ydi([1 2 4:end]);
+end
+% convert 2 stims = into positive/negative examples
+if ( size(Ytgt,3)==2 )
+  Ytgt=-Ytgt(:,:,1) + Ytgt(:,:,2); % +1/-1 labels
+  Yditgt(3)=[];
+end
+										  % add this new label info to z
+z=jf_addClassInfo(z,'Y',Ytgt,'Ydi',Yditgt(1:end-1));
+z=jf_addFolding(z,'nFold',sprintf('lndo_%s',z.di(dim).name),'foldSize',-10); % 10-fold over the sequences

@@ -1,0 +1,1 @@
+pnt2elec /Volumes/BCI data/00 Admin/ForwardModels/electrodes/stndsph.pos /Volumes/BCI data/00 Admin/Subjects/anat_MRI/desain/segmentation/results/skin.tri /Volumes/BCI data/00 Admin/ForwardModels/electrodes/projmri.pos
