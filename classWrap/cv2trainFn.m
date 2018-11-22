@@ -47,8 +47,8 @@ nFolds=size(outerfIdxs,ndims(outerfIdxs));
 
 fi=1;
 for fi=1:size(outerfIdxs,ndims(outerfIdxs));
-   Ytrn = Y; Ytrn(outerfIdxs(:,fi)>0,:)=0; % N.B. can be more than 1 subproblem!
-   Ytst = Y; Ytst(outerfIdxs(:,fi)<0,:)=0;
+   Ytrn = Y; Ytrn(outerfIdxs(:,fi)>=0,:)=0; % N.B. can be more than 1 subproblem!
+   Ytst = Y; Ytst(outerfIdxs(:,fi)<=0,:)=0;
    innerfIdxs = gennFold(Ytrn,opts.nInner);
    
    % Inner cv to determine model parameters, and then train with optimal parameters on all training data
