@@ -42,7 +42,7 @@ end
 
 info.filename=filename;
 if ( isfield(ft,'trial') )
-   if ( isstruct(ft.trial) ) 
+   if ( iscell(ft.trial) ) 
       X=cat(3,ft.trial{:}); names = {'ch','time','epoch'};
    else 
       X=ft.trial; 
