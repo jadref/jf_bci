@@ -156,10 +156,10 @@ else
     [opttstbin,optCi]=max(mean(res.tstbin,2),[],3); 
   end
   for isp=1:size(Y,2); % get soln for each subproblem
-    if ( isfield(res.soln) )
+    if ( isfield(res,'soln') )
       soln  = res.soln{isp,optCi(isp)}; 
     elseif ( isfield(res.fold,'soln') ) % only per-fold solutions available. pick the first
-      soln  = res.fold.soln{isp,optCi(isp)}; 
+      soln  = res.fold.soln{1}{isp,optCi(isp)};
     end
     W(:,isp) = soln(1:end-1); b(isp)=soln(end);      
   end
