@@ -11,14 +11,14 @@ function [W,Sigma,U,D,wX,mu,ridge]=whiten(X,dim,ridge,centerp,stdp,symp,linMapMx
 %         [nCh x nCh x n-d] set of data covariance matrices input-- only if dim(1)=0.
 %  dim  - dim(1)=dimension to whiten, N.B. if dim(1)==0 then assume covariance matrices input
 %         dim(2:end) whiten per each entry in these dim
-%  ridge  - [float] regularisation parameter:                         (1) 
+%  ridge  - [float] regularisation parameter:                         (0) 
 %           \Sigma' = (1-ridge)*\Sigma + ridge * I * mean(diag(\Sigma))
-%           1=full-reg -> no-whitening, just unit-power/trial, 0=no-reg -> normal-whitening, 
+%           1=full-rerg -> no-whitening, just unit-power/trial, 0=no-reg -> normal-whitening, 
 %          'opt' = Optimal-Shrinkage est
 %          'oas' = Optimal orcal shrinkage
 %           ridge<0 -> 0=no-whitening, -1=normal-whitening, reg with ridge'th eigen-spectrum entry
 %          'none' = don't regularise! just map to the eigen-directions
-%  centerp- [bool] flag if we should center the data before whitening (1)
+%  centerp- [bool] flag if we should center the data before whitening (0)
 %  stdp   - [bool] flag if we should standardize input for numerical stability before whitening (0)
 %  symp   - [bool] generate the symetric whitening transform (1)
 %  linMapMx - [size(X,dim(2:end)) x size(X,dim(2:end))] linear mapping over non-acc dim 
